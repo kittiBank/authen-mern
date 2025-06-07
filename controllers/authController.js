@@ -140,6 +140,7 @@ export const sendVerifyOtp = async (req, res) => {
     }
 }
 
+//Verify account with OTP
 export const verifyEmail = async (req, res) => {
     const { userId, otp } = req.body;
 
@@ -171,5 +172,90 @@ export const verifyEmail = async (req, res) => {
 
     } catch (err) {
         return res.json({ success: false, message: err.message });
+    }
+}
+
+//Check if user is authenticated
+export const isAuthenticated = async (req, res) => {
+    try {
+        return res.json({ success: true });
+
+    } catch (err) {
+        res.json({ success: false, message: err.message })
+    }
+}
+
+//Send Password Reset OTP
+export const sendResetOtp = async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.json({ success: false, message: 'Email is required' })
+    }
+
+    try {
+        const user = await userModel.findOne({ email });
+        if (!user) {
+            return res.json({ success: false, message: 'User not found' });
+        }
+
+        //Create OTP number 6 digits
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+        user.resetOtp = otp;
+        user.resetOtpExpireAt = Date.now() + 15 * 60 * 1000
+
+        await user.save();
+
+        const mailOptions = {
+            from: process.env.SENDER_EMAIL,
+            to: user.email,
+            subject: 'การสมัครสมาชิก - Reset Password OTP',
+            text: `รหัส OTP ของคุณคือ ${otp} โปรดนำรหัสนี้ยืนยันบนระบบสมัครสมาชิก เพื่อใช้ Reset Password`
+        }
+
+        await transporter.sendMail(mailOptions);
+
+        return res.json({ success: true, message: 'รหัส OTP ได้ถูกส่งไปยัง Email ของคุณแล้ว' })
+
+    } catch (err) {
+        return res.json({ success: false, message: err.message })
+    }
+}
+
+//Reset User Password
+export const resetPassword = async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+        return res.json({ success: false, message: 'Email, OTP, and new Password are required' })
+    }
+
+    try {
+        const user = await userModel.findOne({ email });
+        if (!user) {
+            return res.json({ success: false, message: 'User not found' })
+        }
+
+        if (user.resetOtp === "" || user.resetOtp !== otp) {
+            return res.json({ success: false, message: 'Invalid OTP' })
+        }
+
+        if (user.resetOtpExpireAt < Date.now()) {
+            return res.json({ success: false, message: 'OTP Expired' })
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        user.password = hashedPassword;
+        user.resetOtp = '';
+        user.resetOtpExpireAt = 0;
+
+        await user.save();
+
+        return res.json({ success: true, message: 'Password has been reset successfully' })
+
+    } catch (err) {
+        return res.json({ success: false, message: err.message })
     }
 }
