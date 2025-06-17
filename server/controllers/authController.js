@@ -144,9 +144,12 @@ export const sendVerifyOtp = async (req, res) => {
 
 //Verify account with OTP
 export const verifyEmail = async (req, res) => {
-    const { userId, otp } = req.body;
+    //const { userId, otp } = req.body;
+    const { otp } = req.body;
+    const userId = req.userId;
 
     if (!userId || !otp) {
+
         return res.json({ success: false, message: 'Missing details' });
     }
 
